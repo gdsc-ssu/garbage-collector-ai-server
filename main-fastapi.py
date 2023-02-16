@@ -5,9 +5,7 @@ import tensorflow as tf
 
 import io
 from PIL import Image
-
-from flask import Flask
-from flask import request
+from fastapi import FastAPI, File
 
 model = load_model('trash_model.h5')
 
@@ -16,10 +14,14 @@ categories = {0: 'battery', 1: 'biological', 2: 'glass', 3: 'cardboard', 4: 'clo
               11: 'white-glass'}
 
 
-def predict_garbage_type(garbage_image):
-    # img = garbage_image.read()
-    # img = Image.open(io.BytesIO(img))
-    img = Image.open(garbage_image)
+def mobilenetv2_preprocessing(img):
+    return mobilenetv2.preprocess_input(img)
+
+
+def predict_garbage_type(garbage_image: bytes = File()):
+    img = await garbage_image.read()
+    img = Image.open(io.BytesIO(img))
+    # img = Image.open(garbage_image)
     img = np.asarray(img)
     img = tf.image.resize(img, (224, 224))
     img = np.reshape(img, (1, 224, 224, 3))
@@ -33,19 +35,17 @@ def predict_garbage_type(garbage_image):
 
     return prob, garbage_category
 
-app = Flask(__name__)
 
-@app.route("/test", methods=["GET"])
-def test():
+app = FastAPI()
+
+
+@app.get("/test")
+async def test():
     return {"result": "Hello World!"}
 
 
-@app.route("/garbage", methods=["GET"])
-def get_garbage_type():
-    garbage_image = request.files['image']
+@app.get("/garbage")
+async def get_garbage_type(garbage_image: bytes = File()):
     prob, category = predict_garbage_type(garbage_image)
 
     return {"predicted_type": category, "probability": prob}
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8000)
